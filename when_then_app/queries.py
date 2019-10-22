@@ -1,10 +1,50 @@
 '''
 Conditional Expressions
- => let you use if … elif … else logic within filters, annotations, aggregations, and updates.
+ => We can use if … elif … else logic while quering tha database
+ => Used within filters, annotations, aggregations, and updates.
+ => executes series of conditions while querying the database.
+ => checks the condition for every record of the table.
+ => It executes the conditions one by one until one of the given conditions are satisfied. 
+ => If no conditions are satisfied then the default value is returned if it is provided 
+ => otherwise "None" will be returned.
+
  => Using a When() object is similar to using the filter() method.
  		* condition can be specified using field lookups or Q objects
  		* result is provided using the then keyword.
 '''
+
+
+
+
+'''
+Syntax of When: When(condition=true,then=value)
+Eg. of When : 
+When(account_type=Client.REGULAR, then=Value('3%')
+When(Q(name__startswith="John") | Q(name__startswith="Paul"), then="name")
+'''
+
+
+
+'''
+Syntax of Case: Case(When(condition=true,then=value)... When...)
+Eg. of When : When(account_type=Client.REGULAR, then=Value('3%')
+'''
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 # A Case() expression is like the if … elif … else statement in Python
@@ -45,12 +85,10 @@ Client.objects.annotate(
 
 
 
-
-
 # get the discount based on how long the Client has been with us
-a_month_ago = date.today() - timedelta(days=30)
-a_year_ago = date.today() - timedelta(days=365)
-five_year_ago = date.today() - timedelta(days=365 * 5)
+a_month_ago = date.today() - timedelta(days=30) # 1%
+a_year_ago = date.today() - timedelta(days=365) # 5%
+five_year_ago = date.today() - timedelta(days=365 * 5) # 10%
 
 y = Client.objects.annotate(
 	discount=Case(
@@ -70,6 +108,16 @@ y = Client.objects.annotate(
 # "when_then_app_client"'
 
 
+
+# wrong ✖
+Client.objects.annotate(
+	discount=Case(
+		When(registered_on__lte=a_year_ago, then=Value('5%')),
+		When(registered_on__lte=five_year_ago, then=Value('10%')),
+		default=Value('1%'),
+		output_field=CharField(),
+	)
+).values_list('name', 'discount', 'registered_on')
 
 # wrong ✖
 Client.objects.annotate(
@@ -114,6 +162,17 @@ Client.objects.annotate(
 
 # find gold clients that registered more than a month ago
 # and platinum clients that registered more than a year ago
+
+
+Client.objects.filter(
+	account_type=Client.PLATINUM, registered_on__lte=(a_year_ago)
+	).values_list('name', 'account_type', 'registered_on')
+Client.objects.filter(
+	account_type=Client.GOLD, registered_on__lte=(a_month_ago)
+	).values_list('name', 'account_type', 'registered_on')
+
+
+# equivalent when...then...
 Client.objects.filter(
 	registered_on__lte=Case(
 		When(account_type=Client.GOLD, then=a_month_ago),
@@ -133,9 +192,13 @@ Client.objects.filter(
 
 
 
-
-
 # find out how many clients there are for each account_type ?
+Client.objects.filter(account_type=Client.REGULAR).aggregate(regular = Count('pk'))
+Client.objects.filter(account_type=Client.GOLD).aggregate(gold = Count('pk'))
+Client.objects.filter(account_type=Client.PLATINUM).aggregate(platinum = Count('pk'))
+
+
+# equivalent query
 Client.objects.aggregate(
 	regular=Count('pk', filter=Q(account_type=Client.REGULAR)),
 	gold=Count('pk', filter=Q(account_type=Client.GOLD)),
@@ -177,6 +240,23 @@ Client.objects.aggregate(
 
 
 # change the account_type for our clients to match their registration dates
+# if user is registered more than a year then gold
+# if user is registered more than 5 years then platinum
+
+Client.objects.filter(registered_on__lt=a_year_ago).update(account_type=Client.GOLD)
+Client.objects.filter(registered_on__lt=five_year_ago).update(account_type=Client.PLATINUM)
+
+
+
+
+
+
+
+
+
+
+
+
 # has a little problem. Where ?? 🤔
 Client.objects.update(
 	account_type=Case(
@@ -187,6 +267,7 @@ Client.objects.update(
 )
 
 Client.objects.values_list('name', 'account_type', 'registered_on')
+
 
 # doesn't work => because we need to give default value 😒 ✖
 Client.objects.update(
